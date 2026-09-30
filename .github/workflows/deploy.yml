@@ -1,0 +1,122 @@
+name: Deploy Microservices Stack Dev02 via SSM
+
+on:
+  push:
+    branches:
+      - deploy
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # Paso de diagnóstico para confirmar la estructura exacta de archivos en el runner
+      - name: Diagnóstico de estructura de carpetas
+        run: |
+          echo "=== Directorio Raíz ==="
+          ls -la
+          echo "=== Contenido de Backend_dev02 ==="
+          ls -la Backend_dev02 || echo "No se encontró la carpeta Backend_dev02"
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Iniciar sesión en AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Garantizar existencia de repositorios en ECR
+        run: |
+          for repo in ms-ordenes ms-notificaciones ms-auditoria; do
+            aws ecr describe-repositories --repository-names $repo --region ${{ env.AWS_REGION }} || \
+            aws ecr create-repository --repository-name $repo --region ${{ env.AWS_REGION }}
+          done
+
+      - name: Construir y subir imágenes a AWS ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # ms-ordenes
+          docker build -t $ECR_REGISTRY/ms-ordenes:$IMAGE_TAG -t $ECR_REGISTRY/ms-ordenes:latest ./ms-ordenes
+          docker push $ECR_REGISTRY/ms-ordenes:$IMAGE_TAG
+          docker push $ECR_REGISTRY/ms-ordenes:latest
+
+          # ms-notificaciones
+          docker build -t $ECR_REGISTRY/ms-notificaciones:$IMAGE_TAG -t $ECR_REGISTRY/ms-notificaciones:latest ./ms-notificaciones
+          docker push $ECR_REGISTRY/ms-notificaciones:$IMAGE_TAG
+          docker push $ECR_REGISTRY/ms-notificaciones:latest
+
+          # ms-auditoria
+          docker build -t $ECR_REGISTRY/ms-auditoria:$IMAGE_TAG -t $ECR_REGISTRY/ms-auditoria:latest ./ms-auditoria
+          docker push $ECR_REGISTRY/ms-auditoria:$IMAGE_TAG
+          docker push $ECR_REGISTRY/ms-auditoria:latest
+
+      - name: Transferir Compose y Desplegar vía SSM
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DATASOURCE_URL: ${{ secrets.DATASOURCE_URL }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          AZURE_ISSUER_URI: ${{ secrets.AZURE_ISSUER_URI }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          PRODUCTOS_SERVICE_URL: ${{ secrets.PRODUCTOS_SERVICE_URL }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+          RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+          RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_USERNAME }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          COMPOSE_BASE64=$(base64 -w 0 docker-compose.yml)
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="[
+              \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR_REGISTRY}\",
+              \"docker network create ecommerce-network || true\",
+              \"mkdir -p /home/ec2-user/app\",
+              \"echo ${COMPOSE_BASE64} | base64 -d > /home/ec2-user/app/docker-compose.yml\",
+              \"cd /home/ec2-user/app\",
+              \"export ECR_REGISTRY=${ECR_REGISTRY}\",
+              \"export DATASOURCE_URL='${DATASOURCE_URL}'\",
+              \"export POSTGRES_USER='${POSTGRES_USER}'\",
+              \"export POSTGRES_PASSWORD='${POSTGRES_PASSWORD}'\",
+              \"export AZURE_ISSUER_URI='${AZURE_ISSUER_URI}'\",
+              \"export AZURE_TENANT_ID='${AZURE_TENANT_ID}'\",
+              \"export AZURE_CLIENT_ID='${AZURE_CLIENT_ID}'\",
+              \"export PRODUCTOS_SERVICE_URL='${PRODUCTOS_SERVICE_URL}'\",
+              \"export CORS_ALLOWED_ORIGINS='${CORS_ALLOWED_ORIGINS}'\",
+              \"export RABBITMQ_HOST='${RABBITMQ_HOST}'\",
+              \"export RABBITMQ_PORT='${RABBITMQ_PORT}'\",
+              \"export RABBITMQ_USERNAME='${RABBITMQ_USERNAME}'\",
+              \"export RABBITMQ_PASSWORD='${RABBITMQ_PASSWORD}'\",
+              \"export SMTP_USERNAME='${SMTP_USERNAME}'\",
+              \"export SMTP_PASSWORD='${SMTP_PASSWORD}'\",
+              \"docker compose pull\",
+              \"docker compose up -d --remove-orphans\"
+            ]" \
+            --region ${{ env.AWS_REGION }} \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Comando SSM enviado con ID: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --region ${{ env.AWS_REGION }}
