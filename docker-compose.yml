@@ -1,7 +1,7 @@
 services:
 
   ms-ordenes:
-    build: ./ms-ordenes
+    image: ${ECR_REGISTRY}/ms-ordenes:latest
     container_name: ecommerce-ms-ordenes
     ports:
       - "8084:8084"
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   ms-notificaciones:
-    build: ./ms-notificaciones
+    image: ${ECR_REGISTRY}/ms-notificaciones:latest
     container_name: ecommerce-ms-notificaciones
     ports:
       - "8085:8085"
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
 
   ms-auditoria:
-    build: ./ms-auditoria
+    image: ${ECR_REGISTRY}/ms-auditoria:latest
     container_name: ecommerce-ms-auditoria
     ports:
       - "8086:8086"
@@ -95,7 +95,7 @@ services:
     networks:
       - ecommerce-network
     healthcheck:
-      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
