@@ -4,6 +4,7 @@ import cl.proyectoEcommerce.ms_auditoria.dto.RegistroAuditoriaResponseDTO;
 import cl.proyectoEcommerce.ms_auditoria.models.RegistroAuditoria;
 import cl.proyectoEcommerce.ms_auditoria.repositories.RegistroAuditoriaRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/auditoria")
+@PreAuthorize("hasRole('Admin')")
 public class AuditoriaController {
 
     private final RegistroAuditoriaRepository registroAuditoriaRepository;
@@ -21,8 +23,6 @@ public class AuditoriaController {
         this.registroAuditoriaRepository = registroAuditoriaRepository;
     }
 
-    // GET /api/v1/auditoria -> traza completa de eventos de RabbitMQ recibidos por el sistema,
-    // usado como evidencia de que el nuevo microservicio consume las colas del ecosistema.
     @GetMapping
     public ResponseEntity<List<RegistroAuditoriaResponseDTO>> obtenerRegistros() {
         List<RegistroAuditoriaResponseDTO> registros = registroAuditoriaRepository.findAll().stream()
