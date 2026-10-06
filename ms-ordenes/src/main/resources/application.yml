@@ -37,7 +37,7 @@ spring:
 pedidos360:
   exchange: pedidos360.exchange
   routing-key:
-    orden-creada: orden.creada
+    orden-creada: pedidos360.orden.creada
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
