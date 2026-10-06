@@ -22,6 +22,21 @@ public class OrdenEventPublisher {
     }
 
     public void publicarOrdenCreada(OrdenCreadaEvent evento) {
-        rabbitTemplate.convertAndSend(exchangeName, routingKeyOrdenCreada, evento);
+
+        System.out.println(
+            "PUBLICANDO ORDEN: id=" + evento.ordenId()
+            + ", exchange=" + exchangeName
+            + ", routingKey=" + routingKeyOrdenCreada
+        );
+
+        rabbitTemplate.convertAndSend(
+            exchangeName,
+            routingKeyOrdenCreada,
+            evento
+        );
+
+        System.out.println(
+            "EVENTO ENVIADO A RABBITMQ: ordenId=" + evento.ordenId()
+        );
     }
 }
