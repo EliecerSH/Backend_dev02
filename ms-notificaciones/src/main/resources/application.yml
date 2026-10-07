@@ -26,7 +26,8 @@ spring:
 notificaciones:
   email:
     remitente: ${SMTP_USERNAME:pedidos360@no-reply.local}
-    modo-simulado: ${NOTIFICACIONES_MODO_SIMULADO:true}
+    destinatario: ${NOTIFICACIONES_EMAIL_DESTINATARIO}
+    modo-simulado: ${NOTIFICACIONES_MODO_SIMULADO:false}
 
 pedidos360:
   exchange: pedidos360.exchange

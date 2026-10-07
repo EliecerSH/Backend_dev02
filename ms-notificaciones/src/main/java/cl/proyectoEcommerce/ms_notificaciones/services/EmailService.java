@@ -15,29 +15,26 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final String remitente;
+    private final String destinatario;
     private final boolean modoSimulado;
 
     public EmailService(
             JavaMailSender mailSender,
             @Value("${notificaciones.email.remitente}") String remitente,
+            @Value("${notificaciones.email.destinatario}") String destinatario,
             @Value("${notificaciones.email.modo-simulado}") boolean modoSimulado) {
         this.mailSender = mailSender;
         this.remitente = remitente;
+        this.destinatario = destinatario;
         this.modoSimulado = modoSimulado;
     }
 
     // Notificación disparada por el evento orden.creada. En este entregable no
-    // existe
-    // un lookup del correo real del usuario a partir de su Azure OID, así que se
-    // deja
-    // la evidencia en el log; en producción aquí se resolvería el email vía
-    // ms-usuarios
-    // y se delegaría a enviarCorreo(...).
+    // existe un lookup del correo real del usuario a partir de su Azure OID, así
+    // que se envía al destinatario parametrizado (notificaciones.email.destinatario).
     public void enviarNotificacionOrden(String usuarioOid, String asunto, String cuerpo) {
         log.info("[NOTIFICACIÓN DE COMPRA] usuario={} asunto='{}' -> {}", usuarioOid, asunto, cuerpo);
-        if (modoSimulado) {
-            log.info("Modo simulado activo (NOTIFICACIONES_MODO_SIMULADO=true): no se envía correo real.");
-        }
+        enviarCorreo(destinatario, asunto, cuerpo);
     }
 
     // Envío directo usado por el endpoint de prueba

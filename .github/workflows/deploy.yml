@@ -80,6 +80,7 @@ jobs:
           RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFICACIONES_EMAIL_DESTINATARIO: ${{ secrets.NOTIFICACIONES_EMAIL_DESTINATARIO }}
         run: |
           COMPOSE_BASE64=$(base64 -w 0 docker-compose.yml)
 
@@ -107,6 +108,7 @@ jobs:
               \"export RABBITMQ_PASSWORD='${RABBITMQ_PASSWORD}'\",
               \"export SMTP_USERNAME='${SMTP_USERNAME}'\",
               \"export SMTP_PASSWORD='${SMTP_PASSWORD}'\",
+              \"export NOTIFICACIONES_EMAIL_DESTINATARIO='${NOTIFICACIONES_EMAIL_DESTINATARIO}'\",
               \"docker compose pull\",
               \"docker compose up -d --remove-orphans\"
             ]" \
