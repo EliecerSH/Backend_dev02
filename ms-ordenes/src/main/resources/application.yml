@@ -15,7 +15,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -28,6 +28,15 @@ spring:
           tenant-id: ${AZURE_TENANT_ID}
           client-id: ${AZURE_CLIENT_ID}
 
+  kafka:
+    # Broker Kafka en la EC2 de Backend_dev03 (IP privada:9092)
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:ms-ordenes}
+      auto-offset-reset: earliest
+    listener:
+      missing-topics-fatal: false
+
   rabbitmq:
     host: ${RABBITMQ_HOST}
     port: ${RABBITMQ_PORT}
@@ -38,10 +47,16 @@ pedidos360:
   exchange: pedidos360.exchange
   routing-key:
     orden-creada: pedidos360.orden.creada
+  pagos:
+    # true: la orden nace PENDIENTE_PAGO y "orden.creada" (stock + correo) se publica solo cuando
+    # ms-pagos informa AUTHORIZED por Kafka. false: comportamiento anterior (sin pasarela de pago).
+    requerido: ${PAGO_REQUERIDO:false}
+    topic-resultados: ${TOPIC_PAGOS_RESULTADOS:pagos.resultados}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
+    org.apache.kafka: WARN

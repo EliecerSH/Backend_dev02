@@ -25,7 +25,7 @@ public class Orden {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal total;
 
-    // Estados: PENDIENTE -> PROCESADA
+    // Estados: PENDIENTE_PAGO -> PAGADA | PAGO_RECHAZADO (con pasarela) o PROCESADA (sin pasarela)
     @Column(nullable = false, length = 20)
     private String estado;
 

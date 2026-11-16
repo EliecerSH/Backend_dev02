@@ -81,6 +81,8 @@ jobs:
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           NOTIFICACIONES_EMAIL_DESTINATARIO: ${{ secrets.NOTIFICACIONES_EMAIL_DESTINATARIO }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+          PAGO_REQUERIDO: ${{ secrets.PAGO_REQUERIDO }}
         run: |
           COMPOSE_BASE64=$(base64 -w 0 docker-compose.yml)
 
@@ -109,6 +111,8 @@ jobs:
               \"export SMTP_USERNAME='${SMTP_USERNAME}'\",
               \"export SMTP_PASSWORD='${SMTP_PASSWORD}'\",
               \"export NOTIFICACIONES_EMAIL_DESTINATARIO='${NOTIFICACIONES_EMAIL_DESTINATARIO}'\",
+              \"export KAFKA_BOOTSTRAP_SERVERS='${KAFKA_BOOTSTRAP_SERVERS}'\",
+              \"export PAGO_REQUERIDO='${PAGO_REQUERIDO}'\",
               \"docker compose pull\",
               \"docker compose up -d --remove-orphans\"
             ]" \

@@ -166,3 +166,16 @@ El repositorio incluye un flujo de trabajo de GitHub Actions (`.github/workflows
 2. Creación y actualización de repositorios de imágenes Docker para `ms-ordenes`, `ms-notificaciones` y `ms-auditoria`.
 3. Construcción y subida (`docker push`) de imágenes etiquetadas con el SHA del commit y `latest`.
 4. Ejecución del comando de despliegue mediante **AWS Systems Manager (SSM)** en la instancia **AWS EC2**, actualizando la aplicación sin intervención manual.
+
+---
+
+## 💳 Integración con pagos (Backend_dev03 / Kafka)
+
+Desde la entrega 3, `ms-ordenes` **consume el tópico Kafka `pagos.resultados`** publicado por `ms-pagos`:
+
+| Variable | Valor |
+| :-- | :-- |
+| `KAFKA_BOOTSTRAP_SERVERS` | `<IP privada EC2 Backend_dev03>:9092` |
+| `PAGO_REQUERIDO` | `true` para exigir pago WebPay (por defecto `false`, comportamiento anterior) |
+
+Con `PAGO_REQUERIDO=true` la orden se crea como `PENDIENTE_PAGO` y el evento `orden.creada` (stock, correo, auditoría por RabbitMQ) se publica **solo cuando el pago es `AUTHORIZED`**. Un rechazo deja la orden en `PAGO_RECHAZADO`. Las colas RabbitMQ se mantienen; la justificación está en `Backend_dev03/docs/RABBITMQ_VS_KAFKA.md`.
