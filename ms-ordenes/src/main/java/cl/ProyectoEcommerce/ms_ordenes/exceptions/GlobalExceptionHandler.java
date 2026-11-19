@@ -36,6 +36,11 @@ public class GlobalExceptionHandler {
         return construirRespuesta(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
+    @ExceptionHandler(OrdenNoEliminableException.class)
+    public ResponseEntity<Map<String, Object>> manejarNoEliminable(OrdenNoEliminableException ex) {
+        return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(StockInsuficienteException.class)
     public ResponseEntity<Map<String, Object>> manejarStock(StockInsuficienteException ex) {
         return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());

@@ -59,6 +59,17 @@ public class OrdenController {
         return ResponseEntity.ok(orden);
     }
 
+    // Elimina un pedido que aún no se pagó (PENDIENTE_PAGO o PAGO_RECHAZADO). Solo el dueño o un Admin.
+    // Estos pedidos no descontaron stock ni enviaron correo, así que borrarlos no deja nada inconsistente.
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminarOrden(
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication,
+            @PathVariable Long id) {
+        ordenService.eliminarOrden(id, extraerUsuarioOid(jwt), esAdmin(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
     private boolean esAdmin(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals(ROL_ADMIN));
@@ -71,4 +82,4 @@ public class OrdenController {
         }
         return jwt.getSubject();
     }
-}
+}

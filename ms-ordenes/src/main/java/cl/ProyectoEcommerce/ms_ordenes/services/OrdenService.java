@@ -7,6 +7,7 @@ import cl.ProyectoEcommerce.ms_ordenes.events.ItemEvento;
 import cl.ProyectoEcommerce.ms_ordenes.events.OrdenAuditoriaEvent;
 import cl.ProyectoEcommerce.ms_ordenes.events.OrdenCreadaEvent;
 import cl.ProyectoEcommerce.ms_ordenes.events.PagoResultadoEvent;
+import cl.ProyectoEcommerce.ms_ordenes.exceptions.OrdenNoEliminableException;
 import cl.ProyectoEcommerce.ms_ordenes.exceptions.OrdenNotFoundException;
 import cl.ProyectoEcommerce.ms_ordenes.exceptions.StockInsuficienteException;
 import cl.ProyectoEcommerce.ms_ordenes.messaging.AuditoriaPublisher;
@@ -17,6 +18,7 @@ import cl.ProyectoEcommerce.ms_ordenes.repositories.OrdenRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +41,12 @@ public class OrdenService {
         static final String AUDIT_ORDEN_REGISTRADA = "pedidos360.orden.registrada";
         static final String AUDIT_ORDEN_PAGADA = "pedidos360.orden.pagada";
         static final String AUDIT_ORDEN_PAGO_RECHAZADO = "pedidos360.orden.pago-rechazado";
+        static final String AUDIT_ORDEN_ELIMINADA = "pedidos360.orden.eliminada";
+        static final String AUDIT_PAGO_SIN_ORDEN = "pedidos360.orden.pago-sin-orden";
+
+        // Solo se pueden eliminar pedidos que todavía no se pagaron
+        private static final java.util.Set<String> ESTADOS_ELIMINABLES =
+                        java.util.Set.of(ESTADO_PENDIENTE_PAGO, ESTADO_PAGO_RECHAZADO);
 
         private static final Logger log = LoggerFactory.getLogger(OrdenService.class);
 
@@ -103,7 +111,15 @@ public class OrdenService {
                 }
                 Orden orden = ordenRepository.findById(evento.orderId()).orElse(null);
                 if (orden == null) {
-                        log.warn("Resultado de pago para una orden inexistente: {}", evento.orderId());
+                        if ("AUTHORIZED".equals(evento.status())) {
+                                // Caso límite: el cliente eliminó el pedido mientras tenía Webpay abierto y luego pagó.
+                                // Se deja registro en auditoría para revisar y reembolsar manualmente.
+                                log.error("Pago AUTHORIZED para la orden {} que ya no existe (cliente {}). Requiere reembolso manual.",
+                                                evento.orderId(), evento.clientId());
+                                auditoriaPublisher.publicar(AUDIT_PAGO_SIN_ORDEN, evento.orderId(), evento);
+                        } else {
+                                log.warn("Resultado de pago para una orden inexistente: {}", evento.orderId());
+                        }
                         return;
                 }
                 if (ESTADO_PAGADA.equals(orden.getEstado())) {
@@ -148,6 +164,22 @@ public class OrdenService {
                 return orden.getItems().stream()
                                 .map(i -> new ItemEvento(i.getProductoId(), i.getCantidad(), i.getPrecioUnitario()))
                                 .toList();
+        }
+
+        // Elimina un pedido no pagado. Solo el dueño o un Admin.
+        @Transactional
+        public void eliminarOrden(Long id, String usuarioOid, boolean esAdmin) {
+                Orden orden = ordenRepository.findById(id)
+                                .orElseThrow(() -> new OrdenNotFoundException(id));
+                if (!esAdmin && !orden.getUsuarioOid().equals(usuarioOid)) {
+                        throw new AccessDeniedException("No tienes permiso para eliminar este pedido.");
+                }
+                if (!ESTADOS_ELIMINABLES.contains(orden.getEstado())) {
+                        throw new OrdenNoEliminableException(id, orden.getEstado());
+                }
+                auditar(AUDIT_ORDEN_ELIMINADA, orden, "Eliminado por " + (esAdmin ? "Admin" : "el cliente"));
+                ordenRepository.delete(orden);
+                log.info("Orden {} eliminada (estado {})", id, orden.getEstado());
         }
 
         @Transactional(readOnly = true)
