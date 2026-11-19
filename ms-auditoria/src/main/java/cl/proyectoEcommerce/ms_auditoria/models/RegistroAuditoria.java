@@ -5,14 +5,15 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "registros_auditoria")
+@Table(name = "registros_auditoria",
+        uniqueConstraints = @UniqueConstraint(name = "uk_auditoria_event_id", columnNames = "event_id"))
 public class RegistroAuditoria {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Routing key del evento tal como llegó a RabbitMQ (ej: "orden.creada", "stock.actualizado")
+    // Tipo del evento (header "tipo-evento" de Kafka), ej: "pedidos360.orden.creada", "pedidos360.pago.authorized"
     @Column(name = "tipo_evento", nullable = false, length = 100)
     private String tipoEvento;
 
@@ -23,12 +24,26 @@ public class RegistroAuditoria {
     @Column(name = "recibido_en", updatable = false)
     private LocalDateTime recibidoEn;
 
+    // Identificador único del evento (header "event-id"): evita registrar dos veces un mensaje re-entregado
+    @Column(name = "event_id", length = 64)
+    private String eventId;
+
+    // Microservicio que generó el evento (header "origen")
+    @Column(length = 50)
+    private String origen;
+
     public RegistroAuditoria() {
     }
 
     public RegistroAuditoria(String tipoEvento, String payload) {
         this.tipoEvento = tipoEvento;
         this.payload = payload;
+    }
+
+    public RegistroAuditoria(String tipoEvento, String payload, String eventId, String origen) {
+        this(tipoEvento, payload);
+        this.eventId = eventId;
+        this.origen = origen;
     }
 
     @PrePersist
@@ -46,4 +61,8 @@ public class RegistroAuditoria {
     public void setPayload(String payload) { this.payload = payload; }
 
     public LocalDateTime getRecibidoEn() { return recibidoEn; }
+
+    public String getEventId() { return eventId; }
+
+    public String getOrigen() { return origen; }
 }

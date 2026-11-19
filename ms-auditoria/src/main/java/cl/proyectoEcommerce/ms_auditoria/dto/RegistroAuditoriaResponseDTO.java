@@ -6,5 +6,6 @@ public record RegistroAuditoriaResponseDTO(
         Long id,
         String tipoEvento,
         String payload,
-        LocalDateTime recibidoEn
+        LocalDateTime recibidoEn,
+        String origen
 ) {}

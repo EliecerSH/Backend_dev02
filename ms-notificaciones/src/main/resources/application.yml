@@ -10,6 +10,15 @@ spring:
     port: ${RABBITMQ_PORT}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
+    listener:
+      simple:
+        # Antes, si el SMTP fallaba, el mensaje se reencolaba para siempre (ciclo infinito).
+        # Ahora: 3 intentos y luego se descarta sin reencolar.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 5s
 
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
@@ -28,6 +37,9 @@ notificaciones:
     remitente: ${SMTP_USERNAME:pedidos360@no-reply.local}
     destinatario: ${NOTIFICACIONES_EMAIL_DESTINATARIO}
     modo-simulado: ${NOTIFICACIONES_MODO_SIMULADO:false}
+  # POST /api/v1/notificaciones/test-email (sin autenticación): apagado por defecto
+  test-endpoint:
+    enabled: ${NOTIFICACIONES_TEST_ENDPOINT:false}
 
 pedidos360:
   exchange: pedidos360.exchange

@@ -1,7 +1,6 @@
 package cl.proyectoEcommerce.ms_auditoria.controllers;
 
 import cl.proyectoEcommerce.ms_auditoria.dto.RegistroAuditoriaResponseDTO;
-import cl.proyectoEcommerce.ms_auditoria.models.RegistroAuditoria;
 import cl.proyectoEcommerce.ms_auditoria.repositories.RegistroAuditoriaRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -9,7 +8,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -25,9 +23,10 @@ public class AuditoriaController {
 
     @GetMapping
     public ResponseEntity<List<RegistroAuditoriaResponseDTO>> obtenerRegistros() {
-        List<RegistroAuditoriaResponseDTO> registros = registroAuditoriaRepository.findAll().stream()
-                .sorted(Comparator.comparing(RegistroAuditoria::getRecibidoEn).reversed())
-                .map(r -> new RegistroAuditoriaResponseDTO(r.getId(), r.getTipoEvento(), r.getPayload(), r.getRecibidoEn()))
+        List<RegistroAuditoriaResponseDTO> registros = registroAuditoriaRepository.findTop500ByOrderByRecibidoEnDesc()
+                .stream()
+                .map(r -> new RegistroAuditoriaResponseDTO(r.getId(), r.getTipoEvento(), r.getPayload(),
+                        r.getRecibidoEn(), r.getOrigen()))
                 .toList();
         return ResponseEntity.ok(registros);
     }

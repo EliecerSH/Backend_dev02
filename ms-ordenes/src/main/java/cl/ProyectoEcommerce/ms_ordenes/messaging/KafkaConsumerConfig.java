@@ -16,8 +16,8 @@ import org.springframework.util.backoff.FixedBackOff;
 import java.util.HashMap;
 import java.util.Map;
 
-// Consumidor Kafka de ms-ordenes: solo lee "pagos.resultados".
-// Los eventos de órdenes hacia stock / notificaciones / auditoría siguen viajando por RabbitMQ.
+// Consumidor Kafka de ms-ordenes: lee "pagos.resultados".
+// stock / notificaciones siguen por RabbitMQ; la auditoría se publica en Kafka (ver AuditoriaPublisher).
 @Configuration
 public class KafkaConsumerConfig {
 

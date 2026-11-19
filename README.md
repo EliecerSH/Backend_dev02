@@ -1,6 +1,6 @@
 # Sistema de Microservicios Backend - Pedidos360 (Dev02)
 
-Este repositorio contiene el ecosistema de **microservicios backend** para la plataforma de E-Commerce / Pedidos360. La arquitectura está diseñada bajo un enfoque de **microservicios orientados a eventos (Event-Driven Architecture)** construidos con **Java 17 / Spring Boot 3**, mensajería mediante **RabbitMQ**, persistencia en **PostgreSQL**, autenticación centralizada con **Azure AD (Entra ID)** y despliegue automatizado en **AWS EC2** a través de **GitHub Actions** y **AWS SSM**.
+Este repositorio contiene el ecosistema de **microservicios backend** para la plataforma de E-Commerce / Pedidos360. La arquitectura está diseñada bajo un enfoque de **microservicios orientados a eventos (Event-Driven Architecture)** construidos con **Java 17 / Spring Boot 3**, mensajería mediante **RabbitMQ** (tareas) y **Kafka** (eventos y auditoría), persistencia en **PostgreSQL**, autenticación centralizada con **Azure AD (Entra ID)** y despliegue automatizado en **AWS EC2** a través de **GitHub Actions** y **AWS SSM**.
 
 ---
 
@@ -11,18 +11,22 @@ graph TD
     Client[Cliente / Frontend] -->|JWT OAuth2| MS_Ordenes[ms-ordenes :8084]
     Client -->|JWT OAuth2| MS_Auditoria[ms-auditoria :8086]
 
-    subgraph Event Broker - RabbitMQ
+    subgraph RabbitMQ - tareas
         Exchange[Topic Exchange: pedidos360.exchange]
         Q_Notif[pedidos360.notificaciones.queue]
-        Q_Audit[pedidos360.auditoria.queue]
-
         Exchange -->|orden.creada| Q_Notif
-        Exchange -->|#| Q_Audit
     end
 
-    MS_Ordenes -->|Publica OrdenCreadaEvent| Exchange
-    Q_Notif -->|Consume eventos| MS_Notificaciones[ms-notificaciones :8085]
-    Q_Audit -->|Consume todos los eventos| MS_Auditoria
+    subgraph Kafka - eventos en Backend_dev03
+        T_Pagos[pagos.resultados]
+        T_Audit[auditoria.eventos]
+    end
+
+    T_Pagos -->|PAGADA / PAGO_RECHAZADO| MS_Ordenes
+    MS_Ordenes -->|orden.creada si el pago fue aprobado| Exchange
+    MS_Ordenes -->|auditoría| T_Audit
+    Q_Notif -->|Consume| MS_Notificaciones[ms-notificaciones :8085]
+    T_Audit -->|Consume todos los eventos de auditoría| MS_Auditoria
 
     MS_Ordenes --> DB_Ordenes[(PostgreSQL)]
     MS_Auditoria --> DB_Auditoria[(PostgreSQL)]
@@ -37,10 +41,11 @@ graph TD
 
 - **Propósito**: Gestión central de órdenes de compra y carritos.
 - **Funcionalidades principales**:
-  - Recepción y validación de nuevas órdenes (`POST /api/v1/ordenes`).
+  - Recepción y validación de nuevas órdenes (`POST /api/v1/ordenes`). El **precio y el stock** de cada ítem se validan contra ms-productos; el precio que envía el navegador se ignora.
   - Extracción de identidad del usuario autenticado mediante el Token JWT (claim `oid` o `sub` de Azure AD).
   - Persistencia de órdenes e ítems asociados en PostgreSQL.
-  - Publicación de evento asíncrono `OrdenCreadaEvent` a RabbitMQ (`pedidos360.exchange` / `orden.creada`).
+  - Publicación de `OrdenCreadaEvent` a RabbitMQ (`pedidos360.exchange` / `orden.creada`) cuando el pago es aprobado (stock y correo).
+  - Consumo del tópico Kafka `pagos.resultados` y publicación de su auditoría en el tópico Kafka `auditoria.eventos`.
   - Consulta del historial de órdenes del usuario autenticado (`GET /api/v1/ordenes`).
   - Consulta detallada por ID de orden (`GET /api/v1/ordenes/{id}`).
 
@@ -51,15 +56,16 @@ graph TD
   - Listener asíncrono en RabbitMQ (`pedidos360.notificaciones.queue`) escuchando eventos `orden.creada`.
   - Envío automático de confirmaciones de compra por correo vía SMTP (soporta Gmail / JavaMailSender).
   - Soporte para **Modo Simulado** (`notificaciones.email.modo-simulado=true`) para pruebas de desarrollo local sin envío de mails reales.
-  - Endpoint REST de prueba rápida (`POST /api/v1/notificaciones/test-email`).
+  - Endpoint REST de prueba rápida (`POST /api/v1/notificaciones/test-email`), **apagado por defecto** porque el servicio no tiene autenticación. Se activa con `NOTIFICACIONES_TEST_ENDPOINT=true` solo para la demo.
 
 ### 3. `ms-auditoria` (Puerto: `8086`)
 
 - **Propósito**: Trazabilidad, auditoría y registro histórico de eventos en el sistema.
 - **Funcionalidades principales**:
-  - Listener comodín (`#`) en RabbitMQ que captura **todos** los eventos circulantes en el exchange `pedidos360.exchange`.
+  - Consumidor Kafka del tópico `auditoria.eventos`, donde ms-ordenes, ms-productos y ms-pagos publican cada hito (antes era la cola RabbitMQ `pedidos360.auditoria.queue` con binding `#`).
+  - El tipo de evento llega en el header `tipo-evento`; el header `event-id` evita registros duplicados.
   - Persistencia del payload de cada evento, tipo de evento y fecha/hora exacta en PostgreSQL (`RegistroAuditoria`).
-  - Endpoint REST de consulta de traza de auditoría (`GET /api/v1/auditoria`).
+  - Endpoint REST de consulta de traza de auditoría (`GET /api/v1/auditoria`, últimos 500 eventos).
 
 ---
 
@@ -169,13 +175,27 @@ El repositorio incluye un flujo de trabajo de GitHub Actions (`.github/workflows
 
 ---
 
-## 💳 Integración con pagos (Backend_dev03 / Kafka)
+## 💳 Integración con Kafka (Backend_dev03)
 
-Desde la entrega 3, `ms-ordenes` **consume el tópico Kafka `pagos.resultados`** publicado por `ms-pagos`:
+| Servicio | Uso de Kafka |
+| :-- | :-- |
+| `ms-ordenes` | **Consume** `pagos.resultados` (pasa la orden a `PAGADA` / `PAGO_RECHAZADO`) y **publica** su auditoría en `auditoria.eventos` |
+| `ms-auditoria` | **Consume** `auditoria.eventos` (reemplaza a la cola RabbitMQ `pedidos360.auditoria.queue`). Ya **no usa RabbitMQ** |
+| `ms-notificaciones` | No usa Kafka: sigue consumiendo `orden.creada` desde RabbitMQ |
 
 | Variable | Valor |
 | :-- | :-- |
-| `KAFKA_BOOTSTRAP_SERVERS` | `<IP privada EC2 Backend_dev03>:9092` |
-| `PAGO_REQUERIDO` | `true` para exigir pago WebPay (por defecto `false`, comportamiento anterior) |
+| `KAFKA_BOOTSTRAP_SERVERS` | `<IP privada EC2 Backend_dev03>:9092` (la usan ms-ordenes y ms-auditoria) |
+| `PAGO_REQUERIDO` | `true` para exigir pago WebPay |
+| `PRODUCTOS_SERVICE_URL` | URL de ms-productos **incluyendo** `/api/v1/productos`: ms-ordenes toma de ahí los precios (ya no confía en el precio que manda el navegador) |
+| `NOTIFICACIONES_TEST_ENDPOINT` | `false` por defecto. `true` solo para probar `POST /api/v1/notificaciones/test-email` en la demo |
 
-Con `PAGO_REQUERIDO=true` la orden se crea como `PENDIENTE_PAGO` y el evento `orden.creada` (stock, correo, auditoría por RabbitMQ) se publica **solo cuando el pago es `AUTHORIZED`**. Un rechazo deja la orden en `PAGO_RECHAZADO`. Las colas RabbitMQ se mantienen; la justificación está en `Backend_dev03/docs/RABBITMQ_VS_KAFKA.md`.
+Con `PAGO_REQUERIDO=true` la orden se crea como `PENDIENTE_PAGO` y el evento `orden.creada` (stock y correo por RabbitMQ) se publica **solo cuando el pago es `AUTHORIZED`**. Un rechazo deja la orden en `PAGO_RECHAZADO`.
+
+**Después de desplegar esta versión**, borrar una sola vez la cola de auditoría antigua (ya no tiene consumidor y acumularía mensajes):
+
+```bash
+docker exec ecommerce-rabbitmq rabbitmqctl delete_queue pedidos360.auditoria.queue
+```
+
+La justificación de qué va por RabbitMQ y qué por Kafka está en `Backend_dev03/docs/RABBITMQ_VS_KAFKA.md`.

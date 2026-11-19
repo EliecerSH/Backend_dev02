@@ -1,14 +1,19 @@
 package cl.proyectoEcommerce.ms_notificaciones.controllers;
 
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import cl.proyectoEcommerce.ms_notificaciones.dto.EmailRequestDTO;
 import cl.proyectoEcommerce.ms_notificaciones.services.EmailService;
 
+// SEGURIDAD: este servicio no tiene autenticación, y el endpoint de prueba permitía a cualquiera
+// enviar correos a cualquier destinatario usando la cuenta SMTP del proyecto.
+// Ahora solo existe si NOTIFICACIONES_TEST_ENDPOINT=true (activarlo solo para la demo y luego apagarlo).
 @RestController
 @RequestMapping("/api/v1/notificaciones")
+@ConditionalOnProperty(name = "notificaciones.test-endpoint.enabled", havingValue = "true")
 public class NotificacionController {
 
     private final EmailService emailService;

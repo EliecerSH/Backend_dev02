@@ -43,8 +43,16 @@ spring:
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
 
+services:
+  productos:
+    # URL base de ms-productos INCLUYENDO /api/v1/productos (precio y stock reales de cada ítem)
+    url: ${PRODUCTOS_SERVICE_URL:http://localhost:8082/api/v1/productos}
+
 pedidos360:
   exchange: pedidos360.exchange
+  auditoria:
+    # Tópico Kafka de auditoría (reemplaza la cola RabbitMQ pedidos360.auditoria.queue)
+    topic: ${TOPIC_AUDITORIA:auditoria.eventos}
   routing-key:
     orden-creada: pedidos360.orden.creada
   pagos:

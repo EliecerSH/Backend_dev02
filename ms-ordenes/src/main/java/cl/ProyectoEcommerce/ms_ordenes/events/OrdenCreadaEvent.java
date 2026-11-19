@@ -5,9 +5,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-// Evento publicado a RabbitMQ cuando se registra una nueva orden.
-// Lo consumen: ms-productos (descuenta stock), ms-notificaciones (envía correo)
-// y ms-auditoria (deja registro del evento).
+// Evento publicado a RabbitMQ cuando la orden queda confirmada (pagada, o creada si no se exige pago).
+// Lo consumen: ms-productos (descuenta stock) y ms-notificaciones (envía correo).
+// ms-auditoria lo recibe por Kafka (tópico auditoria.eventos).
 public record OrdenCreadaEvent(
         Long ordenId,
         String usuarioOid,
